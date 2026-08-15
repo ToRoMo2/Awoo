@@ -16,8 +16,9 @@ import {
   type GameConfig,
   type Move,
   type RoundState,
+  type SeedingSpec,
 } from "../core/index.js";
-import { makeMilestone0Config, MILESTONE_0_PLACEMENTS } from "../presets/milestone0.js";
+import { makeMilestone0SeededConfig, MILESTONE_0_PLACEMENTS } from "../presets/milestone0.js";
 
 /** Une politique de jeu : choisit un coup parmi les coups légaux. */
 type Policy = (state: RoundState) => Move;
@@ -174,7 +175,7 @@ function passRate(outcomes: Outcome[], quota: number): number {
 
 function main(): void {
   const runs = 400;
-  const base = makeMilestone0Config(MILESTONE_0_PLACEMENTS);
+  const base = makeMilestone0SeededConfig(MILESTONE_0_PLACEMENTS);
   const config: GameConfig = {
     ...base,
     // Le quota ne doit pas interrompre la mesure : hors d'atteinte.
@@ -187,16 +188,32 @@ function main(): void {
     return cursor / 4294967296;
   };
 
+  const describeZone = (z: number | SeedingSpec): string =>
+    typeof z === "number" ? String(z) : `${z.total}~[${z.perNodeMin}-${z.perNodeMax}]`;
   const seeding = config.round.initialTokens;
+  const seedingLabel =
+    typeof seeding === "number"
+      ? String(seeding)
+      : `J${describeZone(seeding.player!)}/N${describeZone(seeding.neutral!)}`;
   process.stdout.write(
-    `\nPlateau 2×6 — ${config.round.turnLimit} tours — départ ` +
-      `${typeof seeding === "number" ? seeding : `J${seeding.player}/N${seeding.neutral}`}\n` +
+    `\nPlateau 2×6 — ${config.round.turnLimit} tours — départ ${seedingLabel}\n` +
       `Modules : ${config.placements.map((p) => p.moduleId).join(", ")}\n\n`,
   );
 
-  // Politiques déterministes : le jeu étant sans hasard, une seule manche
-  // suffit — 2000 répétitions donneraient 2000 fois le même score.
-  process.stdout.write("Plafonds (politique parfaite à N coups, 1 manche suffit) :\n");
+  // Le plateau varie désormais avec la graine (incrément 1) : une politique
+  // PARFAITE, sans erreur, ne rend plus un score constant mais une DISTRIBUTION.
+  // C'est la preuve chiffrée que le risque n°1 (§13.1) recule.
+  process.stdout.write("Politique parfaite (vision 3) sur 150 graines :\n");
+  report(
+    "  parfait",
+    Array.from({ length: 150 }, (_, i) => playRound(config, i, lookaheadPolicy(3))),
+  );
+  process.stdout.write(
+    "  Avant l'incrément, ce bloc rendait UN score unique (plateau figé).\n",
+  );
+
+  // Repère de niveau sur une graine donnée : ce que rapporte le fait de voir plus loin.
+  process.stdout.write("\nPlafond de compétence (graine 1) :\n");
   for (const depth of [1, 2, 3, 4]) {
     const outcome = playRound(config, 1, lookaheadPolicy(depth));
     process.stdout.write(

@@ -340,8 +340,8 @@ export class Renderer {
     ctx.textBaseline = "bottom";
     ctx.fillText(
       view.ended
-        ? "R — nouvelle manche   ·   M — son"
-        : "clic — distribuer   ·   espace — accélérer   ·   R — nouvelle manche   ·   M — son",
+        ? "R — nouvelle manche   ·   G — géométrie   ·   M — son"
+        : "clic — distribuer   ·   espace — accélérer   ·   R — manche   ·   G — géométrie   ·   M — son",
       this.width / 2,
       this.height - 12,
     );

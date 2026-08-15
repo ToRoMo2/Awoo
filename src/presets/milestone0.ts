@@ -76,6 +76,40 @@ export function makeMilestone0Config(
 }
 
 /**
+ * Variante SEEDÉE du plateau de départ — premier incrément du jalon 1
+ * (curseur déterminisme, carnet §13.1).
+ *
+ * Le total par zone est IDENTIQUE à MILESTONE_0_ROUND : 24 Jetons côté joueur
+ * (6 Nœuds × 4), Zone Neutre inchangée à 1 par Nœud, sous la fenêtre de capture
+ * (§7.2). Seule la RÉPARTITION côté joueur varie selon la graine — l'ouverture
+ * change à chaque manche, sans aucune dérive d'équilibrage, et la planification
+ * reste intacte (le plateau est connu avant de jouer).
+ *
+ * `perNodeMin: 2` garantit qu'aucun Nœud joueur ne démarre vide, donc les six
+ * points de départ restent ouverts au premier coup.
+ */
+export const MILESTONE_0_SEEDED_ROUND: RoundConfig = {
+  ...MILESTONE_0_ROUND,
+  initialTokens: {
+    player: { total: 24, perNodeMin: 2, perNodeMax: 6 },
+    neutral: 1,
+  },
+};
+
+export function makeMilestone0SeededConfig(
+  placements: ModulePlacement[] = [],
+  registry: ModuleRegistry = makeRegistry(),
+): GameConfig {
+  return {
+    circuit: makeTwoRowRing(6),
+    rules: AWALE_RULES,
+    round: MILESTONE_0_SEEDED_ROUND,
+    registry,
+    placements,
+  };
+}
+
+/**
  * La disposition de départ du jalon 0.
  *
  * Elle est choisie pour être PÉDAGOGIQUE : les trois Modules de Charge sont

@@ -54,13 +54,41 @@ export interface RulesConfig {
   tokenValue: number;
 }
 
+/**
+ * Répartition aléatoire — mais SEEDÉE — d'un total de Jetons sur les Nœuds
+ * d'une zone.
+ *
+ * Le `total` est fixe : seule la FORME varie d'une graine à l'autre. La matière
+ * reste constante d'une manche à l'autre, donc aucune dérive d'équilibrage —
+ * seule l'ouverture change, ce qui casse le « même puzzle à chaque manche »
+ * (carnet §13.1) sans toucher à la planification.
+ *
+ * `perNodeMax` encode EN DONNÉE le garde-fou §7.2 : côté Zone Neutre, il borne
+ * chaque Nœud sous la fenêtre de capture pour qu'aucun ne démarre moissonnable.
+ */
+export interface SeedingSpec {
+  /** Nombre total de Jetons à répartir sur les Nœuds de la zone. */
+  total: number;
+  /** Minimum garanti par Nœud. */
+  perNodeMin: number;
+  /** Maximum autorisé par Nœud (garde-fou §7.2 pour la Zone Neutre). */
+  perNodeMax: number;
+}
+
+/**
+ * Amorçage d'une zone : soit un nombre FIXE de Jetons par Nœud (déterministe,
+ * comportement historique), soit une SeedingSpec répartie par le PRNG seedé.
+ */
+export type ZoneSeeding = number | SeedingSpec;
+
 /** Les paramètres d'une manche. */
 export interface RoundConfig {
   quota: number;
   turnLimit: number;
   /**
-   * Jetons présents au départ : un nombre pour tout le plateau, ou une valeur
-   * par territoire.
+   * Jetons présents au départ : un nombre uniforme pour tout le plateau, ou un
+   * amorçage par territoire — chaque zone recevant soit un nombre fixe par
+   * Nœud, soit une SeedingSpec tirée au sort.
    *
    * Le découpage par zone n'est pas cosmétique. La Zone Neutre n'est jamais
    * jouée par personne, donc rien ne la vide tant qu'aucune Moisson n'a eu
@@ -69,7 +97,7 @@ export interface RoundConfig {
    * Moissons marquent, la manche entière vaut zéro. L'amorçage est donc un
    * paramètre de règle, pas un détail de mise en place.
    */
-  initialTokens: number | Record<ZoneId, number>;
+  initialTokens: number | Record<ZoneId, ZoneSeeding>;
   /** Plafond dur sur les Rejouer d'un même tour (carnet §13.2). */
   maxReplaysPerTurn: number;
   /** Filet de sécurité : nombre max de Jetons déposés dans un tour. */

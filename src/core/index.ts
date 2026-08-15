@@ -42,5 +42,7 @@ export type {
   RoundPhase,
   RoundState,
   RulesConfig,
+  SeedingSpec,
   ZoneId,
+  ZoneSeeding,
 } from "./types.js";

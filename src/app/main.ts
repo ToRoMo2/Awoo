@@ -15,7 +15,8 @@ import {
   type NodeId,
   type RoundState,
 } from "../core/index.js";
-import { makeMilestone0Config, MILESTONE_0_PLACEMENTS } from "../presets/milestone0.js";
+import { makeMilestone0SeededConfig, MILESTONE_0_PLACEMENTS } from "../presets/milestone0.js";
+import { makeOutpostConfig } from "../presets/experiments.js";
 import { GameAudio } from "./audio.js";
 import { Renderer } from "./render.js";
 import { TimelinePlayer } from "./timeline.js";
@@ -28,9 +29,20 @@ if (!(canvas instanceof HTMLCanvasElement)) {
   throw new Error("Canvas introuvable.");
 }
 
-const config = makeMilestone0Config(MILESTONE_0_PLACEMENTS);
+/**
+ * Playtest du jalon 1 : la touche G bascule entre géométries pour SENTIR si
+ * varier le terrain casse la stratégie dominante (mémoire « lever-anti-autopilote »).
+ * Chaque géométrie est juste une autre config — le cœur ne bouge pas.
+ */
+const GEOMETRIES = [
+  { name: "standard", config: makeMilestone0SeededConfig(MILESTONE_0_PLACEMENTS) },
+  { name: "avant-poste", config: makeOutpostConfig(MILESTONE_0_PLACEMENTS) },
+];
+let geoIndex = 0;
+let config = GEOMETRIES[geoIndex]!.config;
+
 const audio = new GameAudio();
-const renderer = new Renderer(canvas, config);
+let renderer = new Renderer(canvas, config);
 
 let state: RoundState;
 let view: ViewState;
@@ -121,6 +133,16 @@ window.addEventListener("keydown", (event) => {
   }
   if (event.key === "r" || event.key === "R") {
     audio.unlock();
+    newRound();
+    return;
+  }
+  if (event.key === "g" || event.key === "G") {
+    // Bascule de géométrie (playtest). On reconstruit le rendu : le layout et
+    // les zones changent, donc la géométrie visuelle aussi.
+    audio.unlock();
+    geoIndex = (geoIndex + 1) % GEOMETRIES.length;
+    config = GEOMETRIES[geoIndex]!.config;
+    renderer = new Renderer(canvas, config);
     newRound();
     return;
   }
