@@ -22,6 +22,7 @@ import type { CircuitConfig, GameConfig, NodeState, RoundState } from "../types.
 import { mancheReward } from "./economy.js";
 import { cloneOffer, generateOffer } from "./shop.js";
 import type {
+  EndlessConfig,
   MancheSpec,
   PurchaseDenyReason,
   RunAction,
@@ -39,9 +40,35 @@ export interface RunResult {
 /** Borne des graines de plateau tirées du PRNG du run. */
 const SEED_BOUND = 0x7fffffff;
 
+/**
+ * L'étape d'indice `index` : celle qui est ÉCRITE si elle existe, sinon une
+ * étape GÉNÉRÉE (mode endless) — géométrie cyclée dans le pool, quota par la
+ * formule. Exportée pour que la présentation lise l'étape courante même
+ * au-delà des étapes écrites.
+ */
+export function stageAt(config: RunConfig, index: number): StageBlueprint {
+  const authored = config.stages[index];
+  if (authored) return authored;
+  if (!config.endless) {
+    throw new Error(`Étape ${index} hors des étapes écrites (run non-endless).`);
+  }
+  return generateStage(config.endless, index);
+}
+
+function generateStage(endless: EndlessConfig, index: number): StageBlueprint {
+  const template = endless.pool[index % endless.pool.length]!;
+  const manches: MancheSpec[] = Array.from({ length: endless.manchesPerStage }, (_, i) => ({
+    quota: Math.round(
+      endless.quotaBase * endless.quotaGrowth ** (index * endless.manchesPerStage + i),
+    ),
+    turnLimit: endless.turnLimit,
+    label: i === 0 ? "petite" : i === endless.manchesPerStage - 1 ? "grande" : `manche ${i + 1}`,
+  }));
+  return { ...template, manches };
+}
+
 export function createRun(config: RunConfig, seed: number): RunState {
-  const stage = config.stages[0];
-  if (!stage) throw new Error("Run sans étape.");
+  const stage = stageAt(config, 0);
 
   const rng = createRng(seed);
   const placements = config.startingPlacements.map((p) => ({ ...p }));
@@ -100,7 +127,7 @@ export function applyRunAction(state: RunState, action: RunAction): RunResult {
       requirePhase(state, "shop", "Lancement de manche");
       next.offer = null;
       next.phase = "playing";
-      events.push(mancheStarted(next, next.config.stages[next.stageIndex]!));
+      events.push(mancheStarted(next, stageAt(next.config, next.stageIndex)));
       return { state: next, events };
     }
   }
@@ -115,7 +142,7 @@ function requirePhase(state: RunState, phase: RunState["phase"], what: string): 
 // --- Fin de manche ---------------------------------------------------------
 
 function resolveMancheEnd(next: RunState, events: RunEvent[]): void {
-  const stage = next.config.stages[next.stageIndex]!;
+  const stage = stageAt(next.config, next.stageIndex);
   const manche = stage.manches[next.mancheIndex]!;
   const round = next.round;
 
@@ -148,7 +175,7 @@ function resolveMancheEnd(next: RunState, events: RunEvent[]): void {
 /** Avance d'une manche : même étape (plateau conservé) ou étape suivante (plateau neuf). */
 function prepareNextManche(next: RunState, events: RunEvent[]): void {
   const config = next.config;
-  const currentStage = config.stages[next.stageIndex]!;
+  const currentStage = stageAt(config, next.stageIndex);
   const lastOfStage = next.mancheIndex >= currentStage.manches.length - 1;
 
   if (!lastOfStage) {
@@ -158,11 +185,11 @@ function prepareNextManche(next: RunState, events: RunEvent[]): void {
     return;
   }
 
+  // Fin d'étape : géométrie suivante — écrite, ou GÉNÉRÉE (endless).
   events.push({ type: "STAGE_CLEARED", stage: next.stageIndex });
   next.stageIndex += 1;
   next.mancheIndex = 0;
-  const stage = config.stages[next.stageIndex];
-  if (!stage) throw new Error("Étape suivante inexistante sur un run non gagné.");
+  const stage = stageAt(config, next.stageIndex);
   next.round = freshManche(config, stage, stage.manches[0]!, next.placements, next.rng);
 }
 
@@ -266,6 +293,8 @@ function mancheStarted(next: RunState, stage: StageBlueprint): RunEvent {
 }
 
 function isLastManche(config: RunConfig, stageIndex: number, mancheIndex: number): boolean {
+  // En endless, il n'y a jamais de dernière manche : on génère à l'infini.
+  if (config.endless) return false;
   const lastStage = config.stages.length - 1;
   if (stageIndex !== lastStage) return false;
   return mancheIndex >= config.stages[lastStage]!.manches.length - 1;

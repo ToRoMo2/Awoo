@@ -17,6 +17,7 @@ import {
   isPlayableZone,
   legalMoves,
   previewSow,
+  stageAt,
   type GameConfig,
   type HarvestStatus,
   type NodeId,
@@ -56,11 +57,18 @@ let shopSel: ShopSel = null;
 
 const newSeed = (): number => (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
 
-const currentStage = () => runState.config.stages[runState.stageIndex]!;
+// stageAt lit l'étape courante même GÉNÉRÉE (au-delà des étapes écrites, endless).
+const currentStage = () => stageAt(runState.config, runState.stageIndex);
 const mancheLabel = () =>
   currentStage().manches[runState.mancheIndex]?.label ?? `manche ${runState.mancheIndex + 1}`;
-const progressLabel = () =>
-  `Étape ${runState.stageIndex + 1}/${runState.config.stages.length} · ${mancheLabel()} · ${currentStage().label}`;
+const progressLabel = () => {
+  // En endless le total n'a pas de sens : on n'affiche que la profondeur atteinte.
+  const stageNum = runState.stageIndex + 1;
+  const scope = runState.config.endless
+    ? `Étape ${stageNum}`
+    : `Étape ${stageNum}/${runState.config.stages.length}`;
+  return `${scope} · ${mancheLabel()} · ${currentStage().label}`;
+};
 
 /**
  * (Re)synchronise tout l'affichage sur la manche courante de runState : la

@@ -105,8 +105,27 @@ export interface ShopConfig {
   tokenPack: TokenPack;
 }
 
+/** Une étape SANS ses manches : géométrie + amorçage, réutilisable pour générer. */
+export type StageTemplate = Omit<StageBlueprint, "manches">;
+
+/**
+ * La génération d'étapes AU-DELÀ des étapes écrites — le mode endless (façon
+ * Balatro). Passé les étapes écrites, le run cycle ce pool de géométries et
+ * fait monter le quota par la même formule, indéfiniment, jusqu'à la défaite.
+ * La « distance » atteinte devient le score de la run.
+ */
+export interface EndlessConfig {
+  pool: StageTemplate[];
+  quotaBase: number;
+  quotaGrowth: number;
+  manchesPerStage: number;
+  turnLimit: number;
+}
+
 export interface RunConfig {
   stages: StageBlueprint[];
+  /** Si présent, le run ne s'arrête jamais par épuisement : il génère à l'infini. */
+  endless?: EndlessConfig;
   economy: EconomyConfig;
   reseed: ReseedConfig;
   shop: ShopConfig;

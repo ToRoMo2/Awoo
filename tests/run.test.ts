@@ -13,6 +13,7 @@ import {
   createRun,
   legalMoves,
   mancheReward,
+  stageAt,
   type CircuitConfig,
   type EconomyConfig,
   type MancheSpec,
@@ -21,6 +22,7 @@ import {
   type RunState,
   type ShopConfig,
   type StageBlueprint,
+  type StageTemplate,
 } from "../src/core/index.js";
 import {
   makeOutpostRing,
@@ -311,6 +313,47 @@ describe("Variantes de géométrie d'étape", () => {
     const before = outpostPositionOf(start);
     const next = applyRunAction(playManche(start), { type: "start-manche" }).state;
     expect(outpostPositionOf(next)).toBe(before);
+  });
+});
+
+describe("Mode endless", () => {
+  const template = (label: string, circuit: CircuitConfig, playerNodes: number): StageTemplate => ({
+    label,
+    circuit,
+    rules: AWALE_RULES,
+    seeding: {
+      initialTokens: { player: { total: playerNodes * 4, perNodeMin: 2, perNodeMax: 6 }, neutral: 1 },
+      maxReplaysPerTurn: 3,
+      maxDropsPerTurn: 500,
+    },
+  });
+
+  it("génère les étapes au-delà des écrites : géométrie cyclée, quota par la formule", () => {
+    const pool = [template("A", makeTwoRowRing(6), 6), template("B", makeOutpostRing(9), 7)];
+    const config = runOf([stageOf("écrite", makeTwoRowRing(6), 6, [{ quota: 2, turnLimit: 15 }])], {
+      endless: { pool, quotaBase: 10, quotaGrowth: 2, manchesPerStage: 1, turnLimit: 15 },
+    });
+
+    // Étape 0 écrite ; 1 et 3 générées, cyclées sur le pool de 2 (index % 2 = 1).
+    expect(stageAt(config, 1).label).toBe("B");
+    expect(stageAt(config, 3).label).toBe("B");
+    expect(stageAt(config, 2).label).toBe("A");
+    // Quota généré = base × growth^(index × manchesPerStage + i).
+    expect(stageAt(config, 1).manches[0]!.quota).toBe(20); // 10 × 2^1
+    expect(stageAt(config, 3).manches[0]!.quota).toBe(80); // 10 × 2^3
+  });
+
+  it("ne gagne jamais par épuisement : la dernière étape écrite mène à une étape générée", () => {
+    const pool = [template("suite", makeTwoRowRing(6), 6)];
+    const config = runOf([stageOf("écrite", makeTwoRowRing(6), 6, [{ quota: 2, turnLimit: 15 }])], {
+      endless: { pool, quotaBase: 2, quotaGrowth: 1.5, manchesPerStage: 1, turnLimit: 15 },
+    });
+
+    const shop = playManche(createRun(config, 1));
+    // PAS « won » : le run continue, boutique ouverte sur l'étape générée.
+    expect(shop.phase).toBe("shop");
+    expect(shop.stageIndex).toBe(1);
+    expect(shop.round.config.round.quota).toBe(3); // 2 × 1.5^1
   });
 });
 

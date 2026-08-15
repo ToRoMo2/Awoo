@@ -13,6 +13,7 @@ import type {
   ShopConfig,
   StageBlueprint,
   StageSeeding,
+  StageTemplate,
 } from "../core/index.js";
 import { makeRegistry } from "../modules/index.js";
 import {
@@ -78,6 +79,18 @@ const STAGE_DEFS: StageDef[] = [
   { label: "double avant-poste", circuit: makeDoubleOutpostRing(), playerNodes: 8 },
 ];
 
+/** Une géométrie sans ses manches — sert aux étapes écrites ET au pool endless. */
+const templateOf = (def: StageDef): StageTemplate => ({
+  label: def.label,
+  circuit: def.circuit,
+  ...(def.variants ? { variants: def.variants } : {}),
+  rules: AWALE_RULES,
+  seeding: seeding(def.playerNodes),
+});
+
+const MANCHES_PER_STAGE = 2;
+const TURN_LIMIT = 15;
+
 /**
  * La boutique du jalon 1. Prix et poids sont des PLACEHOLDERS — l'équilibrage
  * viendra du sim de runs complètes, une fois la boucle jouable. Le pool démarre
@@ -101,19 +114,25 @@ export function makeMilestone1Run(
 ): RunConfig {
   let manche = 0;
   const stages: StageBlueprint[] = STAGE_DEFS.map((def) => ({
-    label: def.label,
-    circuit: def.circuit,
-    ...(def.variants ? { variants: def.variants } : {}),
-    rules: AWALE_RULES,
-    seeding: seeding(def.playerNodes),
+    ...templateOf(def),
     manches: [
-      { quota: quotaFor(manche++), turnLimit: 15, label: "petite" },
-      { quota: quotaFor(manche++), turnLimit: 15, label: "grande" },
+      { quota: quotaFor(manche++), turnLimit: TURN_LIMIT, label: "petite" },
+      { quota: quotaFor(manche++), turnLimit: TURN_LIMIT, label: "grande" },
     ],
   }));
 
   return {
     stages,
+    // Endless : passé les 3 étapes écrites, on cycle les mêmes géométries et le
+    // quota continue de monter par la MÊME formule. Le run ne s'arrête que sur
+    // une défaite ; la distance atteinte est le score (façon Balatro).
+    endless: {
+      pool: STAGE_DEFS.map(templateOf),
+      quotaBase: QUOTA_BASE,
+      quotaGrowth: QUOTA_GROWTH,
+      manchesPerStage: MANCHES_PER_STAGE,
+      turnLimit: TURN_LIMIT,
+    },
     economy: { startingMoney: 0, baseReward: 6, overshootDivisor: 8 },
     reseed: { tokensPerManche: 6 },
     shop: MILESTONE_1_SHOP,
