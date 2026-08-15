@@ -28,6 +28,28 @@ export { computeScore } from "./score.js";
 export { cloneRound, createRound } from "./setup.js";
 export { previewSow } from "./sow.js";
 export { applyMove, type MoveResult } from "./turn.js";
+export { mancheReward } from "./run/economy.js";
+export { applyRunAction, createRun, type RunResult } from "./run/run.js";
+export { cloneOffer, generateOffer } from "./run/shop.js";
+export type {
+  EconomyConfig,
+  MancheSpec,
+  ModulePoolEntry,
+  OfferedModule,
+  PurchaseDenyReason,
+  ReseedConfig,
+  RunAction,
+  RunConfig,
+  RunEvent,
+  RunOutcome,
+  RunPhase,
+  RunState,
+  ShopConfig,
+  ShopOffer,
+  StageBlueprint,
+  StageSeeding,
+  TokenPack,
+} from "./run/types.js";
 export type {
   CircuitConfig,
   GameConfig,

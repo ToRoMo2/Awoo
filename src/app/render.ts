@@ -11,7 +11,7 @@
  * (carnet §10.6).
  */
 
-import type { GameConfig, HarvestStatus, NodeId } from "../core/index.js";
+import type { GameConfig, HarvestStatus, NodeId, ShopOffer } from "../core/index.js";
 import type { ViewState } from "./view.js";
 
 const THEME = {
@@ -48,10 +48,16 @@ export class Renderer {
   private height = 0;
   private rows = 1;
   private status: readonly HarvestStatus[] = [];
+  /** L'argent du run, affiché dans le HUD. Réglé par la couche app. */
+  money = 0;
+  /** Zones cliquables de la boutique, recalculées à chaque drawShopPanel. */
+  private shopHits: { key: string; x: number; y: number; w: number; h: number }[] = [];
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly config: GameConfig,
+    /** Nom de la géométrie active, affiché en haut (aide de playtest). */
+    private readonly label: string = "",
   ) {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas 2D indisponible.");
@@ -317,6 +323,11 @@ export class Renderer {
     ctx.font = "600 14px system-ui, sans-serif";
     ctx.fillText(`/ ${view.quota}`, 22 + scoreWidth + 8, 52);
 
+    // L'argent, dans la couleur de la Moisson (une pièce, c'est une récolte).
+    ctx.fillStyle = THEME.harvest;
+    ctx.font = "800 20px system-ui, sans-serif";
+    ctx.fillText(`$${this.money}`, 22, 72);
+
     // La Charge, dans sa couleur dédiée.
     ctx.textAlign = "right";
     ctx.fillStyle = THEME.textDim;
@@ -326,6 +337,14 @@ export class Renderer {
     ctx.fillStyle = THEME.charge;
     ctx.font = "800 34px system-ui, sans-serif";
     ctx.fillText(`×${view.charge}`, this.width - 22, 34);
+
+    if (this.label) {
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillStyle = THEME.textDim;
+      ctx.font = "700 11px system-ui, sans-serif";
+      ctx.fillText(`GÉOMÉTRIE — ${this.label.toUpperCase()}`, this.width / 2, 4);
+    }
 
     ctx.textAlign = "center";
     ctx.fillStyle = THEME.textDim;
@@ -339,9 +358,7 @@ export class Renderer {
     ctx.font = "500 11px system-ui, sans-serif";
     ctx.textBaseline = "bottom";
     ctx.fillText(
-      view.ended
-        ? "R — nouvelle manche   ·   G — géométrie   ·   M — son"
-        : "clic — distribuer   ·   espace — accélérer   ·   R — manche   ·   G — géométrie   ·   M — son",
+      "clic — distribuer   ·   espace — accélérer   ·   R — nouvelle run   ·   M — son",
       this.width / 2,
       this.height - 12,
     );
@@ -376,6 +393,118 @@ export class Renderer {
     ctx.fillStyle = color;
     ctx.font = `800 ${size}px system-ui, sans-serif`;
     ctx.fillText(text, this.width / 2, this.height * 0.87 - rise);
+    ctx.restore();
+  }
+
+  // --- Boutique (placeholder de playtest) ---------------------------------
+
+  /** L'article de boutique sous le curseur, ou null. */
+  hitTestShop(x: number, y: number): string | null {
+    for (const rect of this.shopHits) {
+      if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) {
+        return rect.key;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Le bandeau de boutique, en bas. Placeholder assumé (carnet §14) : des
+   * rectangles cliquables. On clique un article, puis un Nœud pour le poser.
+   */
+  drawShopPanel(offer: ShopOffer, money: number, selection: string | null): void {
+    const ctx = this.ctx;
+    this.shopHits = [];
+
+    const panelH = 86;
+    const top = this.height - panelH;
+    ctx.fillStyle = "rgba(10,12,18,0.94)";
+    ctx.fillRect(0, top, this.width, panelH);
+
+    ctx.fillStyle = THEME.textDim;
+    ctx.font = "700 11px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("BOUTIQUE — clique un article, puis un Nœud pour le poser", 14, top + 8);
+
+    const y = top + 28;
+    const bh = 48;
+    const gap = 9;
+    let x = 14;
+    const registry = this.config.registry;
+
+    offer.modules.forEach((offered, index) => {
+      const label = registry.get(offered.moduleId)?.label ?? offered.moduleId;
+      const affordable = !offered.sold && money >= offered.price;
+      const sub = offered.sold ? "vendu" : `$${offered.price}`;
+      this.drawShopButton(x, y, 112, bh, label, sub, affordable, selection === `mod:${index}`, `mod:${index}`);
+      x += 112 + gap;
+    });
+
+    const tokenAffordable = money >= offer.tokenPack.price;
+    this.drawShopButton(x, y, 100, bh, `Jetons ×${offer.tokenPack.amount}`, `$${offer.tokenPack.price}`, tokenAffordable, selection === "tokens", "tokens");
+    x += 100 + gap;
+
+    this.drawShopButton(x, y, 86, bh, "Reroll", `$${offer.rerollCost}`, money >= offer.rerollCost, false, "reroll");
+
+    this.drawShopButton(this.width - 134, y, 120, bh, "Commencer ▶", "", true, false, "start");
+  }
+
+  private drawShopButton(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    label: string,
+    sub: string,
+    enabled: boolean,
+    selected: boolean,
+    key: string,
+  ): void {
+    const ctx = this.ctx;
+    ctx.fillStyle = selected ? "#3a3352" : enabled ? THEME.playerNode : "#171a24";
+    ctx.strokeStyle = selected ? THEME.charge : enabled ? THEME.nodeEdgePlayable : THEME.nodeEdge;
+    ctx.lineWidth = selected ? 2.5 : 1.5;
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = enabled ? THEME.text : THEME.textDim;
+    ctx.font = "700 13px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x + w / 2, y + h / 2 + (sub ? -8 : 0));
+
+    if (sub) {
+      ctx.fillStyle = sub === "vendu" ? THEME.textDim : THEME.harvest;
+      ctx.font = "700 12px system-ui, sans-serif";
+      ctx.fillText(sub, x + w / 2, y + h / 2 + 11);
+    }
+
+    this.shopHits.push({ key, x, y, w, h });
+  }
+
+  /** L'écran de fin de run : victoire ou défaite, par-dessus le plateau. */
+  drawRunEnd(won: boolean, money: number, detail: string): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = "rgba(8,10,16,0.82)";
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = won ? THEME.harvest : THEME.text;
+    ctx.font = "800 48px system-ui, sans-serif";
+    ctx.fillText(won ? "VICTOIRE" : "GAME OVER", this.width / 2, this.height * 0.42);
+
+    ctx.fillStyle = THEME.textDim;
+    ctx.font = "600 16px system-ui, sans-serif";
+    ctx.fillText(won ? `Run bouclée — $${money}` : detail, this.width / 2, this.height * 0.42 + 42);
+
+    ctx.fillStyle = THEME.textDim;
+    ctx.font = "500 12px system-ui, sans-serif";
+    ctx.fillText("R — nouvelle run", this.width / 2, this.height * 0.42 + 74);
     ctx.restore();
   }
 }
