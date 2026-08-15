@@ -6,6 +6,9 @@ import type { ModuleDef } from "../core/index.js";
  * +1 Charge par Jeton déposé sur ce Nœud. L'effet est linéaire, donc il se
  * déclenche à chaque Jeton : quatre Jetons, quatre clacs, +4 Charge.
  *
+ * Empilable : au niveau N, il ajoute +N par Jeton (l'empilement est linéaire,
+ * comme l'effet — voir le surcoût doux côté boutique).
+ *
  * C'est le Module « plancher » du jalon 0 : il ne casse aucune règle, mais il
  * sert de matière première aux multiplicateurs placés en aval (carnet §6.6).
  */
@@ -15,6 +18,6 @@ export const chargePlusOne: ModuleDef = {
   trigger: "passage",
   oncePerSow: false,
   apply(context) {
-    context.addCharge(1);
+    context.addCharge(context.level);
   },
 };

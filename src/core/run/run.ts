@@ -171,17 +171,47 @@ function prepareNextManche(next: RunState, events: RunEvent[]): void {
 function buyModule(next: RunState, slot: number, node: number, events: RunEvent[]): void {
   const offered = next.offer?.modules[slot];
   if (!offered || offered.sold) return deny(events, "sold");
-  if (next.money < offered.price) return deny(events, "money");
 
   const target = next.round.nodes[node];
   if (!target) return deny(events, "invalid-node");
-  if (target.moduleId !== null) return deny(events, "occupied");
+  // Un Module DIFFÉRENT déjà présent bloque. Le MÊME Module s'empile.
+  if (target.moduleId !== null && target.moduleId !== offered.moduleId) {
+    return deny(events, "occupied");
+  }
 
-  changeMoney(next, -offered.price, "buy-module", events);
-  target.moduleId = offered.moduleId;
-  next.placements.push({ nodeId: node, moduleId: offered.moduleId });
+  const stacking = target.moduleId === offered.moduleId;
+  const price = stacking
+    ? stackPrice(next.config, offered.moduleId, target.moduleLevel)
+    : offered.price;
+  if (next.money < price) return deny(events, "money");
+
+  changeMoney(next, -price, stacking ? "stack-module" : "buy-module", events);
+
+  if (stacking) {
+    target.moduleLevel += 1;
+    const placement = next.placements.find((p) => p.nodeId === node);
+    if (placement) placement.level = (placement.level ?? 1) + 1;
+  } else {
+    target.moduleId = offered.moduleId;
+    target.moduleLevel = 1;
+    next.placements.push({ nodeId: node, moduleId: offered.moduleId, level: 1 });
+  }
   offered.sold = true;
-  events.push({ type: "MODULE_BOUGHT", moduleId: offered.moduleId, node, price: offered.price });
+  events.push({
+    type: "MODULE_BOUGHT",
+    moduleId: offered.moduleId,
+    node,
+    price,
+    level: target.moduleLevel,
+  });
+}
+
+/** Surcoût pour empiler `moduleId` du niveau `currentLevel` au suivant. */
+function stackPrice(config: RunConfig, moduleId: string, currentLevel: number): number {
+  const entry = config.shop.modulePool.find((e) => e.moduleId === moduleId);
+  // Un Module hors pool n'est pas empilable : coût infini, l'achat sera refusé.
+  if (!entry) return Number.POSITIVE_INFINITY;
+  return Math.round(entry.stackBase * entry.stackFactor ** (currentLevel - 1));
 }
 
 function buyTokens(next: RunState, node: number, events: RunEvent[]): void {
@@ -300,10 +330,14 @@ function continueManche(
   const nodes: NodeState[] = prev.nodes.map((node): NodeState => ({
     tokens: node.tokens,
     moduleId: null,
+    moduleLevel: 0,
   }));
   for (const placement of next.placements) {
     const node = nodes[placement.nodeId];
-    if (node) node.moduleId = placement.moduleId;
+    if (node) {
+      node.moduleId = placement.moduleId;
+      node.moduleLevel = placement.level ?? 1;
+    }
   }
 
   const round: RoundState = {

@@ -79,11 +79,20 @@ export interface TokenPack {
   price: number;
 }
 
-/** Une entrée du pool de Modules : sa probabilité (poids) et son prix. */
+/** Une entrée du pool de Modules : probabilité (poids), prix, et coût d'empilement. */
 export interface ModulePoolEntry {
   moduleId: string;
   weight: number;
+  /** Prix pour poser le Module (niveau 1) sur un Nœud vide. */
   price: number;
+  /**
+   * Surcoût pour EMPILER sur le même Module. Passer du niveau L à L+1 coûte
+   * `stackBase × stackFactor^(L-1)`. Un effet linéaire (+1) prend un facteur
+   * doux ; un effet multiplicatif (×2) prend un facteur élevé, car sa puissance
+   * grimpe très vite (décision du jalon 1).
+   */
+  stackBase: number;
+  stackFactor: number;
 }
 
 /** La boutique en données. Le pool de Modules et le lot de Jetons vivent ici. */
@@ -166,7 +175,7 @@ export type RunEvent =
   | { type: "MONEY_CHANGED"; from: number; to: number; cause: string }
   | { type: "STAGE_CLEARED"; stage: number }
   | { type: "SHOP_OPENED"; money: number }
-  | { type: "MODULE_BOUGHT"; moduleId: string; node: NodeId; price: number }
+  | { type: "MODULE_BOUGHT"; moduleId: string; node: NodeId; price: number; level: number }
   | { type: "TOKENS_BOUGHT"; amount: number; node: NodeId; price: number }
   | { type: "REROLLED"; cost: number }
   | { type: "PURCHASE_DENIED"; reason: PurchaseDenyReason }

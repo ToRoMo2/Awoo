@@ -19,6 +19,8 @@ import type { NodeId, RoundState } from "../types.js";
 export interface ModuleContext {
   /** Le Nœud qui porte ce Module. */
   readonly nodeId: NodeId;
+  /** Niveau d'empilement du Module (≥ 1). Un effet peut le lire pour se cumuler. */
+  readonly level: number;
   /** L'état, en lecture seule. */
   readonly state: Readonly<RoundState>;
   /** Mémoire privée de cet emplacement, persistante pendant la manche. */

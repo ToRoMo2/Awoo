@@ -99,6 +99,40 @@ describe("Modules", () => {
     });
   });
 
+  describe("Empilement (niveau)", () => {
+    it("+1 Charge au niveau 2 ajoute +2 par Jeton déposé", () => {
+      //                        A  B  C  D  E  F  a  b  c  d  e  f
+      const state = roundWithTokens([0, 0, 0, 0, 0, 3, 0, 0, 1, 0, 0, 0], {
+        placements: [{ nodeId: N.a, moduleId: "charge-plus-one", level: 2 }],
+      });
+
+      const { state: after } = applyMove(state, { type: "sow", node: N.F });
+      // a reçoit 1 Jeton → +2 (niveau 2). Charge 1 → 3.
+      expect(after.charge).toBe(3);
+    });
+
+    it("×2 Charge au niveau 2 fait ×4", () => {
+      //                        A  B  C  D  E  F  a  b  c  d  e  f
+      const state = roundWithTokens([0, 0, 0, 0, 0, 3, 0, 0, 1, 0, 0, 0], {
+        placements: [{ nodeId: N.a, moduleId: "charge-double", level: 2 }],
+      });
+
+      const { state: after } = applyMove(state, { type: "sow", node: N.F });
+      // Charge 1 → ×2^2 = 4.
+      expect(after.charge).toBe(4);
+    });
+
+    it("un placement sans niveau se comporte comme un niveau 1", () => {
+      //                        A  B  C  D  E  F  a  b  c  d  e  f
+      const state = roundWithTokens([0, 0, 0, 0, 0, 3, 0, 0, 1, 0, 0, 0], {
+        placements: [{ nodeId: N.a, moduleId: "charge-plus-one" }],
+      });
+
+      const { state: after } = applyMove(state, { type: "sow", node: N.F });
+      expect(after.charge).toBe(2);
+    });
+  });
+
   describe("Rejouer (destination)", () => {
     it("rend la main au joueur sans consommer de tour", () => {
       //                        A  B  C  D  E  F  a  b  c  d  e  f

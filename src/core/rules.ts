@@ -27,7 +27,11 @@ export function isWithinCaptureWindow(rules: RulesConfig, tokens: number): boole
  *
  *  - `ready`  : moissonnable dès qu'un dernier Jeton s'y arrête ;
  *  - `arming` : un Jeton de plus l'amène dans la fenêtre ;
- *  - `out`    : hors d'atteinte pour ce tour.
+ *  - `over`   : Zone Neutre AU-DESSUS de la fenêtre. Son compteur ne fait que
+ *               monter (rien ne le vide sans Moisson), donc la case n'est plus
+ *               récupérable qu'en la moissonnant par une chaîne qui remonte
+ *               dedans. Marquée à part pour ne pas la confondre avec `out` ;
+ *  - `out`    : hors d'atteinte pour ce tour (hors zone, ou en dessous).
  *
  * C'est une lecture de RÈGLE, pas une aide de jeu : l'information est déjà à
  * l'écran, dans les compteurs. La présentation s'en sert pour la rendre
@@ -37,7 +41,7 @@ export function isWithinCaptureWindow(rules: RulesConfig, tokens: number): boole
  * Ne dit PAS si un coup donné capture : ça reste le calcul du joueur, et
  * c'est ce qui fait le suspense de la chaîne (carnet §11.1).
  */
-export type HarvestStatus = "ready" | "arming" | "out";
+export type HarvestStatus = "ready" | "arming" | "over" | "out";
 
 /**
  * `tokens` permet d'interroger un contenu autre que celui de l'état : pendant
@@ -56,5 +60,6 @@ export function harvestStatusOf(
 
   if (isWithinCaptureWindow(rules, tokens)) return "ready";
   if (isWithinCaptureWindow(rules, tokens + 1)) return "arming";
+  if (tokens > Math.max(...rules.captureThresholds)) return "over";
   return "out";
 }

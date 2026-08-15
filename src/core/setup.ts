@@ -28,6 +28,7 @@ export function createRound(config: GameConfig, seed: number): RoundState {
     (_, node): NodeState => ({
       tokens: tokensByNode[node]!,
       moduleId: null,
+      moduleLevel: 0,
     }),
   );
 
@@ -42,6 +43,7 @@ export function createRound(config: GameConfig, seed: number): RoundState {
       throw new Error(`Deux Modules posés sur le Nœud ${placement.nodeId}.`);
     }
     node.moduleId = placement.moduleId;
+    node.moduleLevel = placement.level ?? 1;
   }
 
   return {

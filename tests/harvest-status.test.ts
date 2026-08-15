@@ -27,11 +27,15 @@ describe("État de Moisson d'un Nœud", () => {
     expect(harvestStatusOf(state, N.e)).toBe("out");
   });
 
-  it("laisse hors d'atteinte les Nœuds neutres trop remplis", () => {
+  it("marque « over » les Nœuds neutres au-dessus de la fenêtre", () => {
     const state = roundWithTokens([0, 0, 0, 0, 0, 0, 2, 3, 1, 4, 0, 5]);
 
-    expect(harvestStatusOf(state, N.d)).toBe("out");
-    expect(harvestStatusOf(state, N.f)).toBe("out");
+    // Au-dessus du seuil (4, 5) : en hausse, récupérable seulement en chaîne.
+    expect(harvestStatusOf(state, N.d)).toBe("over");
+    expect(harvestStatusOf(state, N.f)).toBe("over");
+    // En DESSOUS de la fenêtre (0) reste « out », pas « over » : ce n'est pas
+    // condamné, juste pas encore armé.
+    expect(harvestStatusOf(state, N.e)).toBe("out");
   });
 
   /** Le camp du joueur n'est jamais moissonnable, quel que soit son contenu. */
@@ -46,7 +50,7 @@ describe("État de Moisson d'un Nœud", () => {
   it("accepte un contenu imposé, pour suivre l'affichage pendant une animation", () => {
     const state = roundWithTokens([0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]);
 
-    expect(harvestStatusOf(state, N.a)).toBe("out");
+    expect(harvestStatusOf(state, N.a)).toBe("over");
     // Ce que l'écran affiche encore, alors que le cœur a déjà fini.
     expect(harvestStatusOf(state, N.a, 2)).toBe("ready");
     expect(harvestStatusOf(state, N.a, 1)).toBe("arming");
@@ -55,7 +59,7 @@ describe("État de Moisson d'un Nœud", () => {
   /** Un Module qui élargit le seuil doit déplacer le marquage sans le toucher. */
   it("suit le seuil de capture défini par la configuration", () => {
     const state = roundWithTokens([0, 0, 0, 0, 0, 0, 4, 3, 0, 0, 0, 0]);
-    expect(harvestStatusOf(state, N.a)).toBe("out");
+    expect(harvestStatusOf(state, N.a)).toBe("over");
 
     const widened = {
       ...state,

@@ -38,8 +38,8 @@ const SHOP: ShopConfig = {
   offerSize: 3,
   rerollCost: 2,
   modulePool: [
-    { moduleId: "charge-plus-one", weight: 1, price: 4 },
-    { moduleId: "replay", weight: 1, price: 6 },
+    { moduleId: "charge-plus-one", weight: 1, price: 4, stackBase: 3, stackFactor: 1.4 },
+    { moduleId: "replay", weight: 1, price: 6, stackBase: 5, stackFactor: 1.6 },
   ],
   tokenPack: { amount: 3, price: 2 },
 };
@@ -205,7 +205,7 @@ describe("Boutique", () => {
     const bought = applyRunAction(shop, { type: "buy-module", slot: 0, node: 0 }).state;
     expect(bought.money).toBe(moneyBefore - slot.price);
     expect(bought.round.nodes[0]!.moduleId).toBe(slot.moduleId);
-    expect(bought.placements).toContainEqual({ nodeId: 0, moduleId: slot.moduleId });
+    expect(bought.placements).toContainEqual({ nodeId: 0, moduleId: slot.moduleId, level: 1 });
     expect(bought.offer!.modules[0]!.sold).toBe(true);
   });
 
@@ -231,12 +231,37 @@ describe("Boutique", () => {
     expect(state.round.nodes[0]!.tokens).toBe(shop.round.nodes[0]!.tokens);
   });
 
-  it("refuse de poser un Module sur un Nœud déjà occupé", () => {
-    const config = twoStageRun({ ...rich, startingPlacements: [{ nodeId: 0, moduleId: "charge-plus-one" }] });
+  it("refuse de poser un Module sur un Nœud portant un Module DIFFÉRENT", () => {
+    // charge-double n'est pas dans le pool de test : l'offre ne peut jamais
+    // proposer le même Module que celui déjà posé → toujours « occupé ».
+    const config = twoStageRun({ ...rich, startingPlacements: [{ nodeId: 0, moduleId: "charge-double" }] });
     const shop = playManche(createRun(config, 1));
     const { state, events } = applyRunAction(shop, { type: "buy-module", slot: 0, node: 0 });
     expect(events.some((e) => e.type === "PURCHASE_DENIED" && e.reason === "occupied")).toBe(true);
     expect(state.money).toBe(shop.money);
+  });
+
+  it("empile le même Module sur un Nœud et fait payer le surcoût", () => {
+    const stackShop: ShopConfig = {
+      offerSize: 2,
+      rerollCost: 2,
+      modulePool: [{ moduleId: "charge-plus-one", weight: 1, price: 4, stackBase: 3, stackFactor: 1.4 }],
+      tokenPack: { amount: 3, price: 2 },
+    };
+    const config = twoStageRun({ ...rich, shop: stackShop });
+    let shop = playManche(createRun(config, 1));
+
+    // 1er achat : pose au niveau 1 sur le Nœud 0.
+    shop = applyRunAction(shop, { type: "buy-module", slot: 0, node: 0 }).state;
+    expect(shop.round.nodes[0]!.moduleLevel).toBe(1);
+    const moneyAfterFirst = shop.money;
+
+    // 2e achat du même Module sur le MÊME Nœud : empile au niveau 2, surcoût = stackBase (3).
+    const result = applyRunAction(shop, { type: "buy-module", slot: 1, node: 0 });
+    expect(result.state.round.nodes[0]!.moduleLevel).toBe(2);
+    expect(result.state.money).toBe(moneyAfterFirst - 3);
+    expect(result.state.placements).toContainEqual({ nodeId: 0, moduleId: "charge-plus-one", level: 2 });
+    expect(result.events.some((e) => e.type === "MODULE_BOUGHT" && e.level === 2)).toBe(true);
   });
 
   it("reroll coûte et redonne une offre, de façon déterministe", () => {

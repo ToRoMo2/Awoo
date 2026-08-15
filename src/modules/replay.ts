@@ -11,6 +11,9 @@ import type { ModuleDef } from "../core/index.js";
  * Le Rejouer ne relance rien tout seul : il rend la main au joueur, qui doit
  * choisir un nouveau point de départ. C'est cette contrainte qui rend la
  * boucle infinie structurellement impossible.
+ *
+ * Empilable : au niveau N il accorde N Rejouer (chacun soumis au plafond du
+ * tour, qui reste le garde-fou anti-boucle).
  */
 export const replay: ModuleDef = {
   id: "replay",
@@ -18,6 +21,6 @@ export const replay: ModuleDef = {
   trigger: "destination",
   oncePerSow: true,
   apply(context) {
-    context.grantReplay();
+    for (let i = 0; i < context.level; i++) context.grantReplay();
   },
 };

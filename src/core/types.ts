@@ -108,6 +108,11 @@ export interface RoundConfig {
 export interface ModulePlacement {
   nodeId: NodeId;
   moduleId: string;
+  /**
+   * Niveau d'empilement. Absent = 1. Empiler le même Module sur un Nœud fait
+   * monter ce niveau ; l'effet le lit (ex. +1 Charge → +niveau, ×2 → ×2^niveau).
+   */
+  level?: number;
 }
 
 export interface GameConfig {
@@ -129,6 +134,8 @@ export interface NodeState {
    */
   tokens: number;
   moduleId: string | null;
+  /** Niveau d'empilement du Module posé (0 si aucun, sinon ≥ 1). */
+  moduleLevel: number;
 }
 
 /** État sérialisable du générateur pseudo-aléatoire. */

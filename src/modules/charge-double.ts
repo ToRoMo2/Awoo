@@ -10,6 +10,10 @@ import type { ModuleDef } from "../core/index.js";
  * `oncePerSow` : un déclenchement par Distribution, pas par Jeton. Sinon
  * quatre Jetons déposés ici feraient ×16, et l'échelle de score partirait dès
  * le premier tour du jalon 0.
+ *
+ * Empilable, mais MULTIPLICATIF : au niveau N il fait ×2^N (×2, ×4, ×8…). La
+ * puissance monte exponentiellement, donc son surcoût d'empilement aussi
+ * (côté boutique).
  */
 export const chargeDouble: ModuleDef = {
   id: "charge-double",
@@ -17,6 +21,6 @@ export const chargeDouble: ModuleDef = {
   trigger: "passage",
   oncePerSow: true,
   apply(context) {
-    context.multiplyCharge(2);
+    context.multiplyCharge(2 ** context.level);
   },
 };

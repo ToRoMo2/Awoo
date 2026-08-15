@@ -8,7 +8,6 @@
  */
 
 import type {
-  MancheSpec,
   ModulePlacement,
   RunConfig,
   ShopConfig,
@@ -39,31 +38,45 @@ function seeding(playerNodes: number): StageSeeding {
   };
 }
 
-/** Petite puis grande manche : le quota monte, la géométrie reste (décision D). */
-function manches(petit: number, grand: number): MancheSpec[] {
-  return [
-    { quota: petit, turnLimit: 15, label: "petite" },
-    { quota: grand, turnLimit: 15, label: "grande" },
-  ];
+/**
+ * Le quota grandit selon une FORMULE, jamais une liste tapée à la main : un
+ * seul curseur — la croissance — règle toute la difficulté d'une run, et
+ * prépare des runs potentiellement infinies (l'endless de Balatro). `base` et
+ * `growth` sont des PLACEHOLDERS, à régler au sim/playtest.
+ *
+ * Croissance monotone sur tout le run : la petite manche d'une étape est plus
+ * dure que la grande de la précédente. La 1ʳᵉ manche reste basse, gagnable sans
+ * Module (le build se construit à la boutique).
+ */
+const QUOTA_BASE = 12;
+const QUOTA_GROWTH = 1.28;
+const quotaFor = (mancheIndex: number): number =>
+  Math.round(QUOTA_BASE * Math.pow(QUOTA_GROWTH, mancheIndex));
+
+interface StageDef {
+  label: string;
+  circuit: CircuitConfig;
+  playerNodes: number;
+  variants?: CircuitConfig[];
 }
 
-function stage(
-  label: string,
-  circuit: CircuitConfig,
-  playerNodes: number,
-  petit: number,
-  grand: number,
-  variants?: CircuitConfig[],
-): StageBlueprint {
-  return {
-    label,
-    circuit,
-    ...(variants ? { variants } : {}),
-    rules: AWALE_RULES,
-    seeding: seeding(playerNodes),
-    manches: manches(petit, grand),
-  };
-}
+/**
+ * Les étapes, hors quotas (fournis par la formule). La montée de difficulté
+ * vient à la fois du quota ET de la géométrie : « double avant-poste » est
+ * naturellement plus tendu (moins de matière, chaînes plus courtes).
+ */
+const STAGE_DEFS: StageDef[] = [
+  { label: "standard", circuit: makeTwoRowRing(6), playerNodes: 6 },
+  // La position de l'avant-poste varie d'une run à l'autre (pool seedé) :
+  // finie la case bleue toujours au même endroit.
+  {
+    label: "avant-poste",
+    circuit: makeOutpostRing(),
+    playerNodes: 7,
+    variants: OUTPOST_POSITIONS.map((p) => makeOutpostRing(p)),
+  },
+  { label: "double avant-poste", circuit: makeDoubleOutpostRing(), playerNodes: 8 },
+];
 
 /**
  * La boutique du jalon 1. Prix et poids sont des PLACEHOLDERS — l'équilibrage
@@ -74,33 +87,33 @@ const MILESTONE_1_SHOP: ShopConfig = {
   offerSize: 3,
   rerollCost: 2,
   modulePool: [
-    { moduleId: "charge-plus-one", weight: 3, price: 4 },
-    { moduleId: "charge-double", weight: 1, price: 8 },
-    { moduleId: "replay", weight: 2, price: 6 },
+    // +1 : puissance linéaire → empilement à surcoût DOUX.
+    { moduleId: "charge-plus-one", weight: 3, price: 4, stackBase: 3, stackFactor: 1.4 },
+    // ×2 : puissance qui double → empilement à surcoût STEEP (×2 sur ×4 coûte cher).
+    { moduleId: "charge-double", weight: 1, price: 8, stackBase: 6, stackFactor: 2 },
+    { moduleId: "replay", weight: 2, price: 6, stackBase: 5, stackFactor: 1.6 },
   ],
   tokenPack: { amount: 3, price: 2 },
 };
 
-/**
- * Trois étapes de difficulté croissante. La montée vient à la fois du quota ET
- * de la géométrie : « double avant-poste » est naturellement plus tendu (moins
- * de matière, chaînes plus courtes).
- *
- * Quotas PLACEHOLDERS, volontairement bas : la 1ʳᵉ manche doit être gagnable
- * SANS Module (le build se construit ensuite à la boutique). Vrai équilibrage
- * reporté au sim de runs complètes (décision E).
- */
 export function makeMilestone1Run(
   startingPlacements: ModulePlacement[] = [],
 ): RunConfig {
-  return {
-    stages: [
-      stage("standard", makeTwoRowRing(6), 6, 15, 25),
-      // La position de l'avant-poste varie d'une run à l'autre (pool seedé) :
-      // finie la case bleue toujours au même endroit.
-      stage("avant-poste", makeOutpostRing(), 7, 20, 32, OUTPOST_POSITIONS.map((p) => makeOutpostRing(p))),
-      stage("double avant-poste", makeDoubleOutpostRing(), 8, 25, 40),
+  let manche = 0;
+  const stages: StageBlueprint[] = STAGE_DEFS.map((def) => ({
+    label: def.label,
+    circuit: def.circuit,
+    ...(def.variants ? { variants: def.variants } : {}),
+    rules: AWALE_RULES,
+    seeding: seeding(def.playerNodes),
+    manches: [
+      { quota: quotaFor(manche++), turnLimit: 15, label: "petite" },
+      { quota: quotaFor(manche++), turnLimit: 15, label: "grande" },
     ],
+  }));
+
+  return {
+    stages,
     economy: { startingMoney: 0, baseReward: 6, overshootDivisor: 8 },
     reseed: { tokensPerManche: 6 },
     shop: MILESTONE_1_SHOP,

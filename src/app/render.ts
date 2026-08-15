@@ -23,6 +23,10 @@ const THEME = {
   nodeReady: "#6b5420",
   /** Zone Neutre : un Jeton de plus et il y entre. */
   nodeArming: "#4c412c",
+  /** Zone Neutre AU-DESSUS de la fenêtre : en hausse, récupérable seulement en chaîne. */
+  nodeOver: "#472a34",
+  /** Le compteur d'une case au-dessus de la fenêtre : teinte d'alerte discrète. */
+  over: "#b07686",
   nodeEdge: "#4a5570",
   nodeEdgePlayable: "#7d8db8",
   text: "#e8ecf5",
@@ -238,7 +242,9 @@ export class Renderer {
           ? THEME.nodeReady
           : status === "arming"
             ? THEME.nodeArming
-            : THEME.neutralNode
+            : status === "over"
+              ? THEME.nodeOver
+              : THEME.neutralNode
         : THEME.playerNode;
       ctx.beginPath();
       ctx.arc(center.x, center.y, r, 0, Math.PI * 2);
@@ -259,7 +265,13 @@ export class Renderer {
       // HIÉRARCHIE : le nombre de Jetons d'abord, et de loin.
       const count = view.tokens[node] ?? 0;
       ctx.fillStyle =
-        status === "ready" ? THEME.harvest : count === 0 ? THEME.textDim : THEME.text;
+        status === "ready"
+          ? THEME.harvest
+          : status === "over"
+            ? THEME.over
+            : count === 0
+              ? THEME.textDim
+              : THEME.text;
       ctx.font = `700 ${Math.round(radius * 0.95)}px system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -267,19 +279,17 @@ export class Renderer {
 
       // Le Module ensuite, plus petit, hors du cercle. Toujours du côté
       // EXTÉRIEUR du plateau, pour ne jamais empiéter sur l'autre rangée.
-      const moduleId = this.config.placements.find((p) => p.nodeId === node)?.moduleId;
-      if (moduleId) {
-        const def = this.config.registry.get(moduleId);
+      const placement = this.config.placements.find((p) => p.nodeId === node);
+      if (placement) {
+        const def = this.config.registry.get(placement.moduleId);
+        const level = placement.level ?? 1;
+        const label = (def?.label ?? placement.moduleId) + (level > 1 ? ` ×${level}` : "");
         const cell = this.config.circuit.layout[node]!;
         const above = cell.row < this.rows / 2;
         ctx.fillStyle = THEME.charge;
         ctx.font = "600 12px system-ui, sans-serif";
         ctx.textBaseline = above ? "bottom" : "top";
-        ctx.fillText(
-          def?.label ?? moduleId,
-          center.x,
-          center.y + (above ? -radius * 1.35 : radius * 1.35),
-        );
+        ctx.fillText(label, center.x, center.y + (above ? -radius * 1.35 : radius * 1.35));
         ctx.textBaseline = "middle";
       }
     }

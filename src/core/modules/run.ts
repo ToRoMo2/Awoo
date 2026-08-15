@@ -96,6 +96,7 @@ function makeContext(
 
   return {
     nodeId,
+    level: state.nodes[nodeId]?.moduleLevel ?? 1,
     state,
     memory: memoryOf(state, nodeId),
 
